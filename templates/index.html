@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Jarvis Web Assistant</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 100px; }
+    button { padding: 10px 20px; font-size: 18px; }
+    #output { margin-top: 20px; font-size: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Jarvis Web Assistant</h1>
+  <button id="start-btn">🎤 Start Listening</button>
+  <p id="output">Say "Hey Jarvis" to wake me up.</p>
+
+  <script>
+    const output = document.getElementById("output");
+
+    // 🎤 Setup Speech Recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    // 🗣️ Speak text
+    function speak(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      speechSynthesis.speak(utterance);
+      output.textContent = "Jarvis: " + text;
+    }
+
+    // 🎧 Start listening for wake word
+    document.getElementById("start-btn").addEventListener("click", () => {
+      speak("Listening for wake word...");
+      recognition.start();
+    });
+
+    recognition.onresult = async (event) => {
+      const transcript = event.results[0][0].transcript.toLowerCase().trim();
+      output.textContent = "You said: " + transcript;
+
+      // ✅ Wake word check
+      if (transcript.includes("hey jarvis") || transcript.includes("jarvis")) {
+        speak("Yes?");
+        // Listen again for the actual command
+        recognition.start();
+        return;
+      }
+
+      // ✅ Custom responses
+      if (transcript.includes("who are you")) {
+        speak("I am your Jarvis assistant.");
+        return;
+      }
+
+      if (transcript.includes("what is your name")) {
+        speak("My name is Jarvis.");
+        return;
+      }
+
+      if (transcript.includes("exit") || transcript.includes("shutdown")) {
+        speak("Goodbye!");
+        return;
+      }
+
+      // ✅ Web commands
+      if (transcript.includes("open google")) {
+        speak("Opening Google");
+        window.open("https://google.com", "_blank");
+        return;
+      }
+      if (transcript.includes("open youtube")) {
+        speak("Opening YouTube");
+        window.open("https://youtube.com", "_blank");
+        return;
+      }
+
+      // ✅ Questions → ask Flask backend (SerpAPI)
+      const questionWords = ["what", "who", "how", "when", "where", "why", "can", "does", "is", "are"];
+      if (questionWords.some(word => transcript.startsWith(word))) {
+        speak("Let me check...");
+        try {
+          const response = await fetch("/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: transcript })
+          });
+          const data = await response.json();
+          if (data.answer) {
+            speak(data.answer);
+          } else {
+            speak("Sorry, I couldn't find a clear answer. Opening Google.");
+            window.open("https://www.google.com/search?q=" + transcript, "_blank");
+          }
+        } catch (err) {
+          speak("Error fetching answer.");
+        }
+        return;
+      }
+
+      // Fallback
+      speak("Sorry, I didn't understand that.");
+    };
+
+    recognition.onerror = (event) => {
+      speak("Error: " + event.error);
+    };
+  </script>
+</body>
+</html>
